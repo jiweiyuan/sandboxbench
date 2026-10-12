@@ -53,9 +53,10 @@ jobs:
       - name: install tex
         run: |
           sudo apt-get update
+          # acmart.cls lives in texlive-publishers on Debian and Ubuntu.
           sudo apt-get install -y --no-install-recommends \
             texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended \
-            texlive-bibtex-extra texlive-xetex biber
+            texlive-publishers texlive-bibtex-extra texlive-xetex biber
 
       - name: generate the results table
         run: |

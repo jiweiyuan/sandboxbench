@@ -165,10 +165,18 @@ func (r *Runner) runOne(ctx context.Context, prov sandbox.Provider, pc ProviderC
 		base.Reason = "workload implements neither SandboxWorkload nor ProviderWorkload"
 		return base
 	}
-	if err != nil && res.Status == sandbox.StatusCompleted {
-		// A workload that returned an error without marking its own result.
+	// A workload that returned an error without marking its own result, or
+	// one that returned a zero-valued Result, must still land as a failure.
+	// An empty status would otherwise render as neither completed nor failed.
+	if err != nil && (res.Status == sandbox.StatusCompleted || res.Status == "") {
 		res.Status = sandbox.StatusFailed
-		res.Reason = err.Error()
+		if res.Reason == "" {
+			res.Reason = err.Error()
+		}
+	}
+	if res.Status == "" {
+		res.Status = sandbox.StatusFailed
+		res.Reason = "workload returned no status"
 	}
 	if res.Workload == "" {
 		res.Workload = w.Name()

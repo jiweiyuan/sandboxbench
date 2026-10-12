@@ -11,6 +11,10 @@ import (
 )
 
 // Series accumulates samples of one measured quantity.
+//
+// A Series is not safe for concurrent use. Cluster workloads collect samples
+// per goroutine and merge them under their own lock, which also keeps the
+// sample order deterministic.
 type Series struct {
 	Name    string    `json:"name"`
 	Unit    string    `json:"unit"`

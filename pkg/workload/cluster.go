@@ -262,6 +262,12 @@ func (w *NoisyNeighbour) RunProvider(ctx context.Context, env Env, p sandbox.Pro
 		return r, nil
 	}
 
+	// The interference runs on its own context so it can be stopped the moment
+	// the contended measurement is done. Without that, this benchmark would
+	// wait for the interference command's own timeout before returning.
+	noiseCtx, stopNoise := context.WithCancel(ctx)
+	defer stopNoise()
+
 	var (
 		mu     sync.Mutex
 		noise  []sandbox.Sandbox
@@ -282,9 +288,9 @@ func (w *NoisyNeighbour) RunProvider(ctx context.Context, env Env, p sandbox.Pro
 			mu.Lock()
 			noise = append(noise, box)
 			mu.Unlock()
-			// The interference command runs until its own timeout; the result
-			// is discarded on purpose.
-			_, _ = box.Exec(ctx, sandbox.Command{
+			// The interference command's output is discarded on purpose; only
+			// its effect on the victim is being measured.
+			_, _ = box.Exec(noiseCtx, sandbox.Command{
 				Cmd:     "/bin/sh",
 				Args:    []string{"-lc", interferenceLine},
 				Timeout: 10 * time.Minute,
@@ -296,12 +302,13 @@ func (w *NoisyNeighbour) RunProvider(ctx context.Context, env Env, p sandbox.Pro
 
 	contended, cerr := cpu.Run(ctx, baselineEnv, victim)
 
-	for _, box := range noise {
-		tctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 2*time.Minute)
-		_ = box.Destroy(tctx)
-		cancel()
-	}
+	// Stop the interference, wait for every goroutine to leave the noise
+	// slice alone, and only then tear the interferers down.
+	stopNoise()
 	wg.Wait()
+	for _, box := range noise {
+		destroyQuietly(ctx, box)
+	}
 
 	if cerr != nil {
 		return fail(r, cerr)
