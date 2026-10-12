@@ -1,7 +1,7 @@
 \section{Framework Implementation}
 \label{sec:implementation}
 
-SandboxBench is about 3{,}000 lines of Go. Go rather than Rust because the
+SandboxBench is about 5{,}100 lines of Go, with a further 700 of tests. Go rather than Rust because the
 framework is a distributed load generator and an adapter surface, not a
 virtualisation engine: goroutines and contexts express open-loop and
 closed-loop generation directly, and the cost of contributing a new provider
