@@ -1,0 +1,15 @@
+id: integration
+run:
+  repetitions: 3
+  concurrency: 2
+  duration: 2s
+  timeout: 2m
+providers:
+  - name: local
+    config:
+      mode: process
+benchmarks:
+  - name: lifecycle.cold-create
+  - name: execution.short-command
+  - name: lifecycle.resume
+  - name: rl.env-step

@@ -1,0 +1,42 @@
+# Smoke configuration. It needs no credentials and no money: the local adapter
+# runs workloads as processes on the runner host.
+#
+# Use it to check that a workload behaves and that the statistics come out
+# sane before pointing the suite at a hosted provider. Do not put its numbers
+# in a comparison table: there is no isolation boundary and no control plane
+# here, so this is a floor on latency, not a competitor.
+id: v01-local
+notes: >
+  Local process mode on the runner host. Not comparable with hosted providers.
+
+run:
+  repetitions: 12
+  concurrency: 8
+  rate: 4
+  duration: 10s
+  timeout: 10m
+
+create:
+  vcpus: 2
+  memory_mib: 2048
+
+providers:
+  - name: local
+    config:
+      mode: process
+
+benchmarks:
+  - name: lifecycle.cold-create
+  - name: lifecycle.resume            # reports unsupported in process mode
+  - name: execution.short-command
+  - name: compute.cpu-build
+  - name: storage.small-files
+    repetitions: 3
+  - name: rl.env-step
+  - name: rl.env-reset.in-process
+  - name: rl.parallel-rollouts
+    concurrency: 4
+    with:
+      steps: 10
+  - name: scalability.burst
+    concurrency: 16

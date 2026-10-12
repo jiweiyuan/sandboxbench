@@ -1,0 +1,53 @@
+\section{Experimental Methodology}
+\label{sec:methodology}
+
+\subsection{Two leaderboards that must not be merged}
+
+\begin{description}
+  \item[Provider benchmark.] Hosted services measured through their public
+  APIs. The result includes the public network path, the control plane, the
+  scheduler, the storage layer and any warm pool.
+  \item[Infrastructure benchmark.] Firecracker, Cloud Hypervisor and gVisor
+  deployed on identical hardware under our own
+  control~\cite{firecracker2020,gvisor2019}.
+\end{description}
+
+The two are never ranked in one table. A hosted provider's CPU generation,
+storage class, region and prewarming strategy are unknown and differ between
+providers, so a hosted number and a controlled-hardware number do not measure
+the same quantity.
+
+\subsection{What every result publishes}
+
+A sandbox benchmark measures a network path and an account configuration as
+much as it measures a sandbox. Each result therefore carries: requested vCPU,
+memory and disk; region or target; image or template identity; the client
+machine and its network location; concurrency and arrival rate; warm or cold
+state; whether persistence was enabled; the exec transport; and the wall-clock
+window of the run. The framework records all of these automatically except the
+client's network location, which the operator supplies.
+
+\subsection{Statistics}
+
+Each latency series is reported as $n$, median, $p_{90}$, $p_{95}$, $p_{99}$,
+minimum and maximum, with a percentile bootstrap confidence interval on the
+mean. We report medians rather than means as headline numbers: sandbox create
+latency is long-tailed, and the mean of ten creates where one hit a cold pool
+describes neither the warm case nor the cold one.
+
+Repetitions are stated per benchmark. Runs are repeated on at least three
+separate days, because provider performance varies with load that we cannot
+observe, and a single day's measurement cannot be distinguished from that
+day's conditions. \needsdata{the repetition schedule actually used}
+
+\subsection{Cost}
+
+Cost is reported per unit of completed work, not per hour:
+\[
+  C_{\mathrm{task}} = \frac{\text{total charge}}
+  {\text{successfully completed tasks}},
+\]
+which charges startup overhead, execution time and failed retries to the work
+they were spent on. For the reinforcement-learning profile the unit is a
+valid rollout. \needsdata{prices, and the billing granularity each provider
+actually applies}

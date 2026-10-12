@@ -1,0 +1,19 @@
+\section{Limitations and Conclusion}
+\label{sec:conclusion}
+
+SandboxBench measures CPU-based code execution sandboxes. GPU workloads,
+model inference and model training are out of scope by design: including them
+would make the attached accelerator the dominant variable and turn the suite
+into a hardware comparison. Effective density applies only to the
+self-hosted infrastructure configuration, because a hosted provider does not
+expose a host count. And a hosted measurement is always a measurement of a
+date; the suite records the date and expects to be re-run.
+
+What we claim is a benchmark specification for an execution model that
+serverless suites do not describe, an implementation that reports capability
+honestly and separates a provider's command transport from the sandbox behind
+it, and a cross-provider evaluation organised around whether existing metrics
+predict sandbox behaviour at all. \needsdata{the findings}
+
+Both the framework and the configuration files used here are open source at
+\url{https://github.com/jiweiyuan/sandboxbench}.

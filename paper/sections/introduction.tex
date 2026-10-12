@@ -1,0 +1,72 @@
+\section{Introduction}
+\label{sec:introduction}
+
+A code execution sandbox is now a product you buy by the API call. E2B,
+Daytona, Runta, Modal and others expose the same four verbs --- create a
+sandbox, run a command in it, suspend it, destroy it --- and the workloads
+buying them are AI coding agents and reinforcement-learning training loops.
+Both run untrusted, model-generated code, so both need an isolation boundary;
+both run it repeatedly against evolving state, so neither fits the stateless
+invocation that serverless platforms were built around.
+
+The research community has a mature answer for serverless. SeBS established
+what a serverless benchmark suite must do: pick representative applications,
+build one framework that deploys and measures them across providers, and fix a
+methodology for performance, cost and reproducibility~\cite{sebs2021}.
+SeBS-Flow then showed what justifies a \emph{new} suite rather than more
+benchmarks in the old one: a new execution model that the existing tests cannot
+characterise, in its case function orchestration rather than single
+functions~\cite{sebsflow2025}.
+
+This paper argues that cloud code execution sandboxes are such a model, and
+measures them.
+
+\subsection*{Why existing benchmarks do not transfer}
+
+Four properties separate a sandbox session from a function invocation, and each
+one breaks a measurement that FaaS benchmarks rely on.
+
+\begin{itemize}
+  \item \textbf{It is interactive.} A session is a sequence of commands over a
+  warm environment, not one call. The cost that matters is the per-command
+  overhead on a sandbox that already exists, which a cold-start number does not
+  predict.
+  \item \textbf{It is stateful.} The filesystem survives between commands, and
+  on some providers across a suspend. Correctness is therefore part of the
+  measurement: a resume that silently cold-boots is fast and useless.
+  \item \textbf{It is reset, not re-invoked.} A reinforcement-learning
+  environment returns to a start state thousands of times per training run.
+  Depending on the provider and the environment, that reset is an in-process
+  operation, a sandbox recreate, or a snapshot restore. Reporting one number
+  across the three compares nothing.
+  \item \textbf{It is multi-tenant at scale.} A rollout fleet runs thousands of
+  sandboxes concurrently. What a trainer waits on is not single-sandbox speed
+  but sustainable provisioning throughput and the slowdown caused by
+  neighbours.
+\end{itemize}
+
+\subsection*{Contributions}
+
+\begin{description}
+  \item[C1: A workload model.] We characterise stateful, interactive code
+  execution: session length, command duration distribution, the split between
+  environment preparation and useful work, reset frequency, state size, and
+  arrival pattern (\S\ref{sec:background}). \needsdata{the characterisation
+  itself; without it the benchmark design is an engineering guess}
+  \item[C2: A benchmark specification.] Five performance dimensions ---
+  lifecycle, execution, compute, storage, network --- crossed with two
+  execution scales, single and cluster, plus four end-to-end application
+  workloads and a reinforcement-learning profile built from the same
+  dimensions (\S\ref{sec:design}).
+  \item[C3: A provider-agnostic framework.] An open-source Go implementation
+  with a deliberately small provider contract, capability reporting that
+  distinguishes \emph{unsupported} from \emph{slow}, and a timing method that
+  separates a provider's command transport from the sandbox behind it
+  (\S\ref{sec:implementation}).
+  \item[C4: A cross-provider evaluation.] Measurements across three hosted
+  providers answering four research questions (\S\ref{sec:evaluation}).
+  \needsdata{all of it}
+\end{description}
+
+The framework and every configuration file in this paper are at
+\url{https://github.com/jiweiyuan/sandboxbench}.

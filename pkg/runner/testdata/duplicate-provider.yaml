@@ -1,0 +1,8 @@
+id: unit
+providers:
+  - name: local
+    config: {}
+  - name: local
+    config: {}
+benchmarks:
+  - name: execution.short-command

@@ -1,0 +1,6 @@
+id: unit
+providers:
+  - name: local
+    config: {}
+benchmarks:
+  - name: execution.no-such-thing

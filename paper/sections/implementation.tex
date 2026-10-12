@@ -1,0 +1,121 @@
+\section{Framework Implementation}
+\label{sec:implementation}
+
+SandboxBench is about 3{,}000 lines of Go. Go rather than Rust because the
+framework is a distributed load generator and an adapter surface, not a
+virtualisation engine: goroutines and contexts express open-loop and
+closed-loop generation directly, and the cost of contributing a new provider
+adapter matters more to the project than the runner's own peak performance.
+Measurements that need precision run \emph{inside} the sandbox
+(\S\ref{sec:impl:timing}), where the runner's garbage collector cannot reach
+them.
+
+\subsection{Three layers}
+
+\begin{description}
+  \item[Provider adapter] owns resource lifecycle and command execution. It
+  knows nothing about what is being measured.
+  \item[Workload] decides what to measure. It receives either a ready sandbox
+  or, when it needs to control lifecycle itself, the provider.
+  \item[Runner] decides how to drive it: repetitions, concurrency, arrival
+  rate, duration, timeouts, teardown.
+\end{description}
+
+The provider contract is five operations on a sandbox --- \texttt{Exec},
+\texttt{WriteFile}, \texttt{ReadFile}, \texttt{Suspend}, \texttt{Resume},
+\texttt{Destroy} --- plus \texttt{Create} and \texttt{Capabilities} on the
+provider. \texttt{Suspend} and \texttt{Resume} return a sentinel
+\texttt{ErrUnsupported}, which the runner turns into the \emph{unsupported}
+status rather than into a failure or a zero.
+
+Capabilities are checked \emph{before} any sandbox is created, so an
+unsupported benchmark costs nothing rather than wasting a create.
+
+\subsection{Three exec transports}
+\label{sec:impl:transports}
+
+Implementing three adapters surfaced a finding that we did not expect and that
+shapes the rest of the paper: the three providers execute commands over three
+different mechanisms, with three different per-command cost structures
+(Table~\ref{tab:transports}).
+
+\begin{table}[t]
+\caption{Command execution mechanisms. Compiled from each provider's published
+API specification while writing the adapters.}
+\label{tab:transports}
+\small
+\begin{tabular}{@{}llp{3.4cm}@{}}
+\toprule
+Provider & Transport & Per-command cost \\
+\midrule
+Daytona & REST            & one HTTP request to a per-sandbox toolbox proxy \\
+E2B     & Connect-RPC     & a server-streaming RPC to \texttt{envd} inside the sandbox \\
+Runta   & SSH             & a session on a multiplexed connection through an SSH gateway \\
+\midrule
+local   & process         & \texttt{os/exec} on the runner host (reference floor) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Runta's public REST API has no execute endpoint at all; it covers lifecycle,
+files and checkpoints, and commands go in over the SSH gateway. A suite that
+reported a single ``command latency'' column across these three would mostly be
+ranking transports. The transport is therefore recorded with every result and
+printed in every capability table.
+
+\subsection{Separating the transport from the sandbox}
+\label{sec:impl:timing}
+
+Every command is timed twice.
+
+\begin{description}
+  \item[Wall] is measured by the runner and includes one control-plane round
+  trip.
+  \item[In-box] is measured inside the sandbox by a shell wrapper that
+  brackets the command and writes the elapsed nanoseconds to standard error,
+  from where the runner recovers it.
+\end{description}
+
+Compute, storage and application workloads report in-box durations. Lifecycle
+and the execution dimension report wall durations, because for those the round
+trip is the thing under study. A sandbox whose shell cannot produce
+nanosecond timestamps yields no in-box value, and the framework then falls back
+to wall and records which source it used, rather than silently reporting a
+zero.
+
+\subsection{Load generation}
+
+Cluster benchmarks generate load in two modes. Closed-loop holds a fixed
+concurrency and starts new work as old work finishes. Open-loop sends requests
+on a fixed-rate ticker without waiting for the previous one, so a slow provider
+shows up as a growing latency tail rather than as a quietly reduced offered
+load.
+
+Two client-side confounders are controlled explicitly. The HTTP transport is
+configured with a large connection pool, because with Go's default pool a
+burst of a thousand creates queues on the client's own connections and the
+benchmark then measures the runner. And HTTP 429 is surfaced as a typed error
+rather than retried: a throughput ceiling that is really an account quota must
+not be published as a throughput ceiling.
+
+\subsection{Teardown}
+
+Every sandbox is destroyed on a context derived with
+\texttt{context.WithoutCancel}, so an interrupted or timed-out run still
+releases what it allocated. Cleanup failures are counted and reported; a
+provider that leaks sandboxes after a burst is billing for them.
+
+\subsection{Reproducibility}
+
+A run writes one JSON file containing the applied configuration, the client
+platform and operator-supplied location, every summary, and every raw sample,
+so any statistic in the paper can be recomputed from the artefact. Adapter
+configuration blocks hold credentials, so only their \emph{key names} are
+echoed. Bootstrap confidence intervals are seeded from the sample values
+themselves, which makes a reported interval reproducible from the archived
+samples alone. Intervals are suppressed below ten samples rather than
+computed on data that cannot support them.
+
+The same JSON renders to Markdown for reading and to a \texttt{booktabs}
+tabular for this paper, so no number is retyped between the artefact and
+Table~\ref{tab:results}.

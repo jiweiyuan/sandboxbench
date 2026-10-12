@@ -1,0 +1,17 @@
+id: unit
+notes: fixture
+run:
+  repetitions: 3
+  concurrency: 2
+  duration: 5s
+create:
+  vcpus: 1
+  memory_mib: 512
+providers:
+  - name: local
+    config:
+      mode: process
+benchmarks:
+  - name: execution.short-command
+  - name: compute.cpu-build
+    repetitions: 1

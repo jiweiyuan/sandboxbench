@@ -1,0 +1,65 @@
+# SandboxBench v0.1, cluster experiments.
+#
+# These benchmarks create many sandboxes at once and will cost real money.
+# Start at concurrency 16, read the result, then raise it.
+#
+# Two things to control before trusting any number here:
+#
+#   * The runner must not be the bottleneck. Watch its CPU and its open
+#     connection count; a burst that saturates the client measures the client.
+#   * Provider rate limiting is reported as rate limiting, not absorbed by a
+#     retry. A throughput ceiling that is really a quota must not be published
+#     as a throughput ceiling.
+#
+# Required environment: E2B_API_KEY, DAYTONA_API_KEY, RUNTA_API_KEY.
+id: v01-cluster
+notes: >
+  Record the client machine, its network location, the account's published
+  quota for each provider, and the wall-clock window of the run.
+
+run:
+  repetitions: 5
+  concurrency: 64
+  rate: 4
+  duration: 120s
+  timeout: 45m
+
+create:
+  vcpus: 2
+  memory_mib: 2048
+  ttl: 10m
+
+providers:
+  - name: e2b
+    config:
+      api_key: ${E2B_API_KEY}
+      template: base
+
+  - name: daytona
+    config:
+      api_key: ${DAYTONA_API_KEY}
+      snapshot: ""
+      target: us
+
+  - name: runta
+    config:
+      api_key: ${RUNTA_API_KEY}
+      ssh_host: ""
+      ssh_key_id: ${RUNTA_SSH_KEY_ID}
+      ssh_private_key: ${RUNTA_SSH_PRIVATE_KEY}
+
+benchmarks:
+  - name: scalability.burst
+    concurrency: 64
+  - name: scalability.sustained
+  - name: lifecycle.churn
+    concurrency: 16
+  - name: scalability.isolation
+    repetitions: 5
+    with:
+      interferers: 8
+  - name: rl.parallel-rollouts
+    concurrency: 32
+    with:
+      steps: 50
+      obs_bytes: 256

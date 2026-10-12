@@ -1,0 +1,78 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: true
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "these files need gofmt:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - run: go vet ./...
+      - run: go build ./...
+      - run: go test -race ./...
+
+      # The local adapter needs no credentials, so CI runs the whole suite
+      # end to end. A workload that stops producing samples fails the build.
+      - name: smoke run
+        run: |
+          go build -o bin/sandboxbench ./cmd/sandboxbench
+          ./bin/sandboxbench list
+          ./bin/sandboxbench run --config configs/v01-local.yaml \
+            --out results --region "github actions ubuntu-latest"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: smoke-results
+          path: results/*.json
+
+  paper:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: install tex
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended \
+            texlive-bibtex-extra texlive-xetex biber
+
+      - name: generate the results table
+        run: |
+          go build -o bin/sandboxbench ./cmd/sandboxbench
+          ./bin/sandboxbench run --config configs/v01-local.yaml --out results --quiet >/dev/null
+          ./bin/sandboxbench report --in "$(ls -t results/*.json | head -1)" \
+            --format latex --out paper/figures/results-table.tex
+
+      - name: build the paper
+        working-directory: paper
+        run: |
+          xelatex -halt-on-error -interaction=nonstopmode main.tex
+          bibtex main || true
+          xelatex -halt-on-error -interaction=nonstopmode main.tex
+          xelatex -halt-on-error -interaction=nonstopmode main.tex
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paper
+          path: paper/main.pdf

@@ -1,0 +1,59 @@
+\section{Background and Motivation}
+\label{sec:background}
+
+\subsection{From function invocation to sandbox session}
+
+A function-as-a-service platform offers one primitive: invoke a function,
+return a result. Its benchmark suites follow that shape. SeBS measures
+invocation latency, cold-start cost and resource use across six application
+classes~\cite{sebs2021}; FunctionBench provides micro and application
+workloads for the same model~\cite{functionbench2019}; vHive and the snapshot
+line of work attack the cold start directly~\cite{vhive2021,catalyzer2020}.
+
+A sandbox platform offers five: create, exec, suspend, resume, destroy. The
+execution model is
+\[
+  \text{create} \rightarrow (\text{exec})^{n} \rightarrow
+  [\text{suspend} \rightarrow \text{resume} \rightarrow (\text{exec})^{m}]
+  \rightarrow \text{destroy},
+\]
+with $n$ and $m$ in the hundreds for an agent session and the bracketed
+segment repeated for a long-lived one. Three measurement consequences follow.
+
+First, cold start stops being the headline. It is paid once per session and
+amortised over $n$ commands, so for large $n$ the per-command overhead
+dominates the user-visible total. A ranking built on create latency alone can
+inverse the ranking built on session completion time. \needsdata{whether it
+does in practice --- this is RQ1}
+
+Second, the exec path becomes a first-class object of study. It is not part of
+the FaaS model at all, and providers have chosen materially different
+mechanisms for it (\S\ref{sec:implementation}).
+
+Third, correctness joins the measurement. Suspend and resume make the
+filesystem a thing that can be silently lost, so a lifecycle benchmark that
+reports only latency cannot distinguish a fast resume from a fresh boot.
+
+\subsection{What the workloads actually do}
+\label{sec:background:characterisation}
+
+Benchmark design without workload data is guesswork dressed as rigour. Before
+fixing the suite we therefore need answers to:
+
+\begin{enumerate}
+  \item How many commands does one sandbox session run, and how is that
+  distributed?
+  \item How are individual command durations distributed? Where is the tail?
+  \item What fraction of session wall-clock goes to environment preparation,
+  to useful execution, and to waiting for the next interaction?
+  \item How often is a reinforcement-learning environment reset, and by which
+  mechanism?
+  \item How large is the state that must survive a suspend?
+  \item What is the concurrency and the request arrival pattern of a real
+  rollout fleet?
+\end{enumerate}
+
+\needsdata{answers from agent execution traces, public RL environments, and
+aggregated provider metrics. Where a trace cannot be obtained, a synthetic
+workload is used and labelled as synthetic, with its representativeness stated
+as a limitation rather than assumed.}

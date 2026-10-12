@@ -1,0 +1,42 @@
+\section{Related Work}
+\label{sec:related}
+
+\paragraph{Serverless benchmark suites.} SeBS defined the template this work
+follows: a benchmark specification, a cross-provider platform, and an
+evaluation methodology, under the principles of relevance, usability,
+scientific evaluation and extensibility~\cite{sebs2021}. SeBS-Flow extended it
+to function workflows and, more importantly for us, demonstrated what
+justifies a new suite: an execution model the existing tests cannot
+characterise~\cite{sebsflow2025}. FunctionBench contributed micro and
+application workloads for FaaS~\cite{functionbench2019}, and ServiTrace argues
+for fine-grained distributed tracing and end-to-end application measurement
+rather than aggregate latency~\cite{servitrace2025}. All of them measure
+stateless invocation. None measures an interactive stateful session, a
+suspend-resume round trip, or an environment reset.
+
+\paragraph{Sandbox and microVM infrastructure.} Firecracker established the
+microVM as the isolation boundary for multi-tenant
+code execution~\cite{firecracker2020}; the gVisor case study quantified what
+syscall interception costs~\cite{gvisor2019}; SOCK and Catalyzer attacked
+container and VM startup latency~\cite{sock2018,catalyzer2020}. This body of
+work measures the runtime. We measure the service built on top of one, and
+treat the runtime as unobservable for hosted providers.
+
+\paragraph{Reinforcement-learning environment execution.} EnvPool shows that
+environment throughput, not only policy computation, bounds RL training
+throughput~\cite{envpool2022}. It optimises a local execution engine. The
+question we ask is one layer down: how the same environment workload behaves
+when its environments are cloud sandboxes from different providers.
+
+\paragraph{Agent benchmarks.} SWE-bench and its successors evaluate what a
+model can accomplish, using a sandbox as a fixture~\cite{swebench2024}. We
+evaluate the fixture.
+
+\paragraph{Industry measurement.} The Kubernetes agent-sandbox project
+publishes a cluster performance assessment covering rapid burst, high-volume
+ramp, steady-state churn, throughput and warm-pool
+burst~\cite{k8sagentsandbox}; our cluster load profiles follow its shapes
+directly. Vendor and community benchmarks of hosted sandbox providers also
+exist; we treat them as a source of load patterns rather than as comparable
+measurements, since their configuration and client location are generally not
+published.

@@ -1,0 +1,189 @@
+\section{Benchmark Design}
+\label{sec:design}
+
+We adopt the four design principles SeBS states --- relevance, usability, a
+scientific evaluation methodology, and extensibility~\cite{sebs2021} --- and
+add one the sandbox setting forces on us: \emph{capability honesty}. Providers
+do not offer the same operations, and a suite that scores a missing operation
+as zero produces a ranking that rewards having fewer features.
+
+\subsection{Five dimensions, two scales}
+
+Table~\ref{tab:dimensions} is the specification. The rows are dimensions: what
+system capability is being measured. The columns are scales: one sandbox, or
+many at once.
+
+\begin{table}[t]
+\caption{The benchmark specification. Scalability is not a sixth row: it is the
+cluster column of the other five.}
+\label{tab:dimensions}
+\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+Dimension & Single sandbox & Cluster \\
+\midrule
+Lifecycle & create-to-first-exec & ready throughput, burst p99 \\
+Execution & per-command latency & concurrent command throughput \\
+Compute   & build completion time & concurrent build slowdown \\
+Storage   & metadata ops/s, IOPS & concurrent I/O slowdown \\
+Network   & egress RTT, throughput & concurrent network slowdown \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Two choices in that table need defending.
+
+\paragraph{Scalability is not a dimension.} An earlier version of this design
+listed scalability beside lifecycle, compute and storage. That was wrong.
+Scalability is not an independent resource; it is what happens to the other
+five under load. Keeping it as a peer row would score the same underlying
+behaviour twice --- once as ``storage'' and again as ``scalability'' ---
+and any composite ranking built on the result would double-count it.
+
+\paragraph{Orthogonal does not mean statistically independent.} The five
+dimensions have distinct \emph{measurement targets}, not uncorrelated outputs.
+A build time depends on CPU, filesystem and memory together. What the design
+requires is weaker and achievable: each dimension measures a different thing,
+each microbenchmark isolates one dominant bottleneck, each result answers a
+question no other result answers, and no single underlying behaviour is scored
+more than once.
+
+\subsection{Microbenchmarks}
+
+Eight microbenchmarks populate the table. Each exists to explain a number in
+the application results, not to be a ranking of its own.
+
+\begin{description}
+  \item[B01 Cold create.] Create a sandbox and run the first command.
+  Measured to the completion of that command, not to the control plane
+  reporting ``running'': a provider that returns early has moved its startup
+  cost into the user's first command rather than removed it.
+  \item[B02 Resume.] Write a sentinel, suspend, resume, run a command, read
+  the sentinel back. Reports resume-to-ready latency \emph{and} a state
+  correctness rate.
+  \item[B03 Lifecycle churn.] Create and destroy continuously. Reports
+  latency drift and cleanup failures; a provider that leaks sandboxes after a
+  burst is charging for them.
+  \item[B04 Short command.] A no-op command on a live sandbox, repeated. This
+  measures the exec transport, which for an interactive session is the cost
+  that is paid $n$ times.
+  \item[B06 CPU build.] Compile and run a fixed C program written by the
+  benchmark itself, so the measurement never contains a package download and
+  never shifts when an upstream toolchain does.
+  \item[B09 Small files.] Create, stat and delete 5{,}000 small files. An
+  unpacked dependency tree is a metadata workload, not a bandwidth one, so
+  this is the storage number that predicts \texttt{npm ci}.
+  \item[B12 Egress.] Fetch a fixed endpoint from inside the sandbox, timed by
+  \texttt{curl} so the exec transport is excluded. Both the endpoint and the
+  client location are part of the result; change either and the number stops
+  comparing.
+  \item[B14--B16 Cluster.] Burst provisioning, sustained open-loop
+  provisioning, and noisy-neighbour isolation (\S\ref{sec:design:cluster}).
+\end{description}
+
+Four candidate microbenchmarks were cut. Browser automation and data
+processing were dropped because both re-measure compute, storage and network
+without isolating anything; parallel execution and long-running execution were
+dropped as benchmarks and kept as \emph{parameters}, since the same workload
+run at higher concurrency or for longer is not a different benchmark. Model
+inference and model training were cut because they would make the attached
+accelerator, not the sandbox, the thing being ranked.
+
+\subsection{Four application workloads}
+
+Application workloads describe what a developer or an agent waits for. They
+mix dimensions on purpose and are reported in their own table.
+
+\begin{description}
+  \item[A. Environment preparation.] \texttt{git clone} at a pinned commit,
+  then a dependency install. Dominated by network and filesystem metadata.
+  \item[B. Code build and execution.] Build, then test. Dominated by CPU,
+  memory and disk.
+  \item[C. Interactive development.] Start a dev server, wait for it to serve,
+  change a file, wait for the reload. Exercises long-lived processes, file
+  watching and port exposure.
+  \item[D. Stateful continuation.] Write work, suspend, resume, verify. The
+  only application workload with a correctness result as well as a latency.
+\end{description}
+
+No application workload calls a language model. Model latency and output
+non-determinism would be added to a measurement of infrastructure, and would
+dominate it.
+
+\subsection{The reinforcement-learning profile}
+
+The RL profile reuses the dimensions above rather than adding new ones: a
+reset is lifecycle plus storage, a step is execution, a rollout is cluster
+scale. It contributes three benchmarks.
+
+\begin{description}
+  \item[Environment step.] Action to observation on a live environment, with
+  fixed step compute and a configurable observation size, so what the series
+  measures is the sandbox's own scheduling and transport overhead.
+  \item[Environment reset.] Run three times, once per mechanism ---
+  in-process, sandbox recreate, snapshot restore --- and reported as three
+  results. An environment reset is not necessarily a sandbox restart, and
+  collapsing the three would compare incomparable operations.
+  \item[Parallel rollouts.] $N$ environments concurrently, each running a
+  fixed episode. Reports transitions per second and the fraction of episodes
+  that completed intact, because a rollout that breaks partway costs the
+  trainer the whole episode.
+\end{description}
+
+\subsection{Lifecycle profiles}
+
+The same workload is driven under four lifecycle patterns, which is why
+duration and concurrency are run parameters rather than separate benchmarks:
+\emph{ephemeral} (create, run once, destroy), \emph{persistent} (create, run
+many times, destroy), \emph{recoverable} (create, run, checkpoint, resume) and
+\emph{pooled} (prewarm, acquire, run, release).
+
+\subsection{Cluster experiments}
+\label{sec:design:cluster}
+
+Three cluster metrics carry the scale story.
+
+\paragraph{Sustainable provisioning throughput.} Not creation requests
+accepted per second, but sandboxes that reach their first command per second,
+under a stated service-level objective:
+\[
+  T_{\mathrm{sustained}} =
+  \frac{\text{sandboxes that reached first exec}}{\text{elapsed seconds}}
+  \;\Big|\; p_{99} \le L,\; \text{success} \ge S.
+\]
+We report $L$ and $S$ with every value. A control plane that accepts a
+thousand creates and queues them has not provisioned a thousand sandboxes.
+
+\paragraph{Effective density.} Not how many sandboxes a host admits, but how
+many run SLO-compliant work:
+\[
+  D_{\mathrm{effective}} =
+  \frac{\text{SLO-compliant active sandboxes}}{\text{physical hosts}}.
+\]
+For hosted providers the denominator is unobservable, so this metric applies
+only to the self-hosted infrastructure configuration
+(\S\ref{sec:methodology}).
+
+\paragraph{Performance isolation.} Fixed work measured alone and then beside
+$N$ interferers:
+\[
+  \text{slowdown} = \frac{t_{\mathrm{contended}}}{t_{\mathrm{baseline}}} - 1 .
+\]
+
+\subsection{Result status}
+
+Every benchmark against every provider ends in exactly one of four states, and
+all four are printed in every table.
+
+\begin{description}
+  \item[completed] The benchmark ran; its numbers are reportable.
+  \item[unsupported] The provider offers no such capability. This is a
+  statement about features, not about speed.
+  \item[failed] The provider supports the operation and the run broke. The
+  reason is printed in full.
+  \item[skipped] The configuration did not request it.
+\end{description}
+
+The distinction is not cosmetic. Collapsing \emph{unsupported} into a zero
+score makes a provider look slow for a feature it never claimed, and makes the
+resulting leaderboard reward a smaller feature set.

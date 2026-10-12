@@ -1,0 +1,103 @@
+# SandboxBench v0.1, single-sandbox dimensions, across the three hosted
+# providers.
+#
+# Read this before running it:
+#
+#   * It creates and destroys sandboxes on three paid services. Set the TTL and
+#     keep the repetition count low on the first run.
+#   * Every provider must be asked for the same sandbox shape. Where a provider
+#     expresses the shape differently, override it per provider and say so in
+#     notes, rather than leaving the difference implicit.
+#   * Credentials come from the environment. Nothing here holds a token.
+#
+# Required environment: E2B_API_KEY, DAYTONA_API_KEY, RUNTA_API_KEY.
+id: v01-single
+notes: >
+  Set this to the client location, the date, and any per-provider shape
+  difference. Results without it are not comparable with any other run.
+
+run:
+  repetitions: 30
+  concurrency: 8
+  duration: 60s
+  timeout: 30m
+
+create:
+  vcpus: 2
+  memory_mib: 2048
+  disk_gb: 10
+  ttl: 15m
+
+providers:
+  - name: e2b
+    config:
+      api_key: ${E2B_API_KEY}
+      template: base
+
+  - name: daytona
+    config:
+      api_key: ${DAYTONA_API_KEY}
+      # Snapshot name or id to create from. Pin it; a moving default image
+      # makes two runs incomparable.
+      snapshot: ""
+      target: us
+
+  - name: runta
+    config:
+      api_key: ${RUNTA_API_KEY}
+      # Runta executes commands over an SSH gateway rather than a REST
+      # endpoint. These four values are required before any command can run,
+      # and they come from Runta's own documentation, not from its OpenAPI
+      # document.
+      ssh_host: ""
+      ssh_port: 22
+      ssh_user: "%s"
+      ssh_key_id: ${RUNTA_SSH_KEY_ID}
+      ssh_private_key: ${RUNTA_SSH_PRIVATE_KEY}
+
+benchmarks:
+  - name: lifecycle.cold-create
+  - name: lifecycle.resume
+  - name: execution.short-command
+    repetitions: 200
+  - name: compute.cpu-build
+    repetitions: 10
+  - name: storage.small-files
+    repetitions: 5
+  - name: network.egress
+    repetitions: 10
+    with:
+      # Both the endpoint and the client's location decide this number.
+      # Change one and the results stop comparing.
+      endpoint: https://speed.cloudflare.com/__down?bytes=10485760
+
+  # RL profile. The three reset mechanisms are separate benchmarks because an
+  # in-process reset, a sandbox recreate and a snapshot restore are different
+  # operations, and one number for all three would compare nothing.
+  - name: rl.env-step
+    repetitions: 200
+  - name: rl.env-reset.in-process
+  - name: rl.env-reset.recreate
+  - name: rl.env-reset.resume
+
+  # Application workload D. It reports a correctness rate as well as a
+  # latency: a fast resume that lost the filesystem is not a fast resume.
+  - name: app.stateful-continue
+    repetitions: 10
+
+  # Application workloads A to C. Pin a repository and a commit yourself;
+  # there is no default, because a benchmark that pins somebody else's
+  # repository stops being reproducible the moment that repository moves.
+  # - name: app.custom
+  #   repetitions: 5
+  #   with:
+  #     name: node-prepare-build
+  #     repo: https://github.com/your-org/your-fixture
+  #     ref: 0000000000000000000000000000000000000000
+  #     steps:
+  #       - label: install
+  #         line: npm ci
+  #       - label: build
+  #         line: npm run build
+  #       - label: test
+  #         line: npm test

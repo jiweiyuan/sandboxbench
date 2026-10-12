@@ -1,0 +1,80 @@
+%% SandboxBench --- paper skeleton.
+%%
+%% Status: this is a structure with its argument written out and its results
+%% missing. Every number is a placeholder marked \needsdata, and the file will
+%% not quietly pass as finished: see the draft banner on page 1. Remove
+%% \sbdraft once the evaluation is real.
+\documentclass[sigconf,nonacm]{acmart}
+
+\settopmatter{printacmref=false}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage[normalem]{ulem}
+
+%% \needsdata marks a claim that no experiment supports yet. It is deliberately
+%% loud: a placeholder that looks like a result is how a draft turns into a
+%% false claim.
+\newcommand{\needsdata}[1]{\textcolor{red}{\textbf{[needs data: #1]}}}
+%% \sbdraft prints the banner. Delete the line that uses it when the paper is
+%% no longer a skeleton.
+\newcommand{\sbdraft}{%
+  \begin{center}\fcolorbox{red}{yellow!20}{%
+  \parbox{0.92\columnwidth}{\small\textbf{Draft skeleton.} The argument and the
+  benchmark design are written. No experiment has been run. Every quantitative
+  claim is marked \needsdata{} and must not be cited.}}\end{center}}
+
+\begin{document}
+
+\title{SandboxBench: A Benchmark Suite for Cloud-based Code Execution Sandboxes}
+
+\author{Jiwei Yuan}
+\affiliation{%
+  \institution{Independent}
+  \country{}
+}
+\email{ji-weiyuan@outlook.com}
+
+\begin{abstract}
+Cloud providers now sell code execution sandboxes as a product: a service
+creates an isolated environment on demand, runs commands in it, keeps its
+filesystem across a suspend, and destroys it. AI coding agents and
+reinforcement-learning training loops are the workloads driving that market,
+and both of them use a sandbox in a way that function-as-a-service benchmarks
+do not describe. A FaaS benchmark measures one invocation that is stateless by
+construction. A sandbox session is interactive, holds state between commands,
+is reset rather than re-invoked, and runs beside thousands of its neighbours.
+
+We present SandboxBench, a benchmark suite for cloud-based code execution
+sandboxes. It contributes a workload model for stateful interactive execution,
+a benchmark specification of five performance dimensions crossed with two
+execution scales plus four end-to-end application workloads, a
+provider-agnostic measurement framework, and a cross-provider evaluation. The
+framework reports a provider's missing capabilities as missing rather than as
+zero scores, and separates the latency of a provider's command transport from
+the speed of the sandbox it reaches, because those two are routinely conflated
+and differ by an order of magnitude. \needsdata{the headline finding}
+\end{abstract}
+
+\keywords{sandboxes, benchmarking, cloud computing, AI agents, reinforcement learning}
+
+\maketitle
+
+\sbdraft
+
+\input{sections/introduction}
+\input{sections/background}
+\input{sections/design}
+\input{sections/implementation}
+\input{sections/methodology}
+\input{sections/evaluation}
+\input{sections/related}
+\input{sections/conclusion}
+
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{refs}
+
+\end{document}
